@@ -45,9 +45,11 @@ are_rectangles_overlapping :: proc(r1, r2: Rect) -> bool {
 
 draw_points :: proc(points: ^[dynamic]Point, selectedPointIndices: map[int]bool, selecting: bool) {
 	for point, i in points {
-		color := rl.Color{0x61, 0xef, 0xff, 200}
+		//color := rl.Color{0x61, 0xef, 0xff, 200}
+		color := rl.Color{0x54, 0xa0, 0xa0, 200}
 		if selecting && selectedPointIndices[i] {
-			color = {0x44, 0x44, 0xff, 255}
+			//color = {0x44, 0x44, 0xff, 255}
+			color = {0x9d, 0xff, 0xff, 255}
 		}
 		rl.DrawCircle(i32(point.x), i32(point.y), POINT_RADIUS, color)
 		rl.DrawTextEx(font, fmt.caprint(i), {point.x - 9, point.y - 18}, FONT_SIZE, 0, {0,0,0,255})
@@ -214,6 +216,7 @@ main :: proc() {
 	font = rl.LoadFontEx("JetBrainsMono-Regular.ttf", FONT_SIZE, nil, 0)
 
 	points := make([dynamic]Point)
+	pointsOld := make([dynamic]Point)
 
 	leftClick := false
 	lastClick := false
@@ -222,7 +225,12 @@ main :: proc() {
 
 	selectingArea := false
 	selectingAreaStart: rl.Vector2
+	selectedArea := false
 	selectedPointIndices := make(map[int]bool)
+
+	selectedAreaMoveStartPos := [2]f32{-1, -1} // rl.Vector2
+	selectedAreaBboxStartPos := Rect{}
+	selectedAreaBbox := Rect{}
 
 	rl.InitAudioDevice()
 	hitmarker := rl.LoadSound("hitmarker.wav")
@@ -243,6 +251,38 @@ main :: proc() {
 	for !rl.WindowShouldClose() {
 		rl.ClearBackground({24,24,25,255})
 
+		get_selected_area_bbox :: proc(points: [dynamic]Point, selectedPointIndices: map[int]bool) -> Rect {
+			if len(points) == 0 || len(selectedPointIndices) == 0 {
+				return Rect{}
+			}
+
+			// FIXME: Where is F32_MAX ???
+			minX: f32 = 999999999
+			minY: f32 = 999999999
+			maxX: f32 = 0
+			maxY: f32 = 0
+
+			for index in selectedPointIndices {
+				point := points[index]
+				minX = min(minX, point.x - POINT_RADIUS - 5)
+				minY = min(minY, point.y - POINT_RADIUS - 5)
+
+				maxX = max(maxX, point.x + POINT_RADIUS + 5)
+				maxY = max(maxY, point.y + POINT_RADIUS + 5)
+			}
+
+			return Rect{
+				x = minX,
+				y = minY,
+				w = maxX - minX,
+				h = maxY - minY,
+			}
+		}
+
+		if !selectedArea {
+			selectedAreaBbox = get_selected_area_bbox(points, selectedPointIndices)
+		}
+
 		mousePos := rl.GetMousePosition()
 		mouseX := mousePos[0]
 		mouseY := mousePos[1]
@@ -250,44 +290,116 @@ main :: proc() {
 		leftClick = rl.IsMouseButtonDown(.LEFT)
 		rightClick := rl.IsMouseButtonDown(.RIGHT)
 
-		if rightClick {
-			hovered := find_hovered_point(&points, mouseX, mouseY)
-			if hovered != -1 {
-				remove_range(&points, hovered, hovered+1)
+		if selectedArea {
+			mouseRect := Rect{
+				mouseX,
+				mouseY,
+				1,
+				1,
 			}
-		} else if leftClick {
-			if !lastClick && time.since(lastPressTime) < 300 * time.Millisecond {
-				append(&points, Point{mouseX, mouseY})
-				lastPressTime = time.unix(0, 0) // reset
-				rl.PlaySound(hitmarker)
-			} else if !lastClick {
-				lastPressTime = time.now()
-				lastPressPosition = mousePos
+			if !are_rectangles_overlapping(mouseRect, selectedAreaBbox) && (rightClick || (leftClick && !lastClick)) {
+				// Cancelling selected area
+				{
+					selectedArea = false
+					clear_map(&selectedPointIndices)
+				}
+				selectedAreaMoveStartPos = [2]f32{-1, -1} // Reset
+			} else if leftClick {
+				// Moving the selected area
+				//if selectedAreaMoveStartPos == ([2]f32{-1, -1}) { // Compiler bug? Need parentheses surrounding right value
+				if !lastClick { // Compiler bug? Need parentheses surrounding right value
+					selectedAreaMoveStartPos = mousePos
+					selectedAreaBboxStartPos = selectedAreaBbox
 
-				if selectedPointIndex == -1 {
-					selectedPointIndex = find_hovered_point(&points, mouseX, mouseY)
+					resize(&pointsOld, len(points))
+					copy_slice(pointsOld[:], points[:])
+				}
+
+				diffX := mousePos.x - selectedAreaMoveStartPos.x
+				diffY := mousePos.y - selectedAreaMoveStartPos.y
+
+				selectedAreaBbox.x = selectedAreaBboxStartPos.x + diffX
+				selectedAreaBbox.y = selectedAreaBboxStartPos.y + diffY
+
+				for index in selectedPointIndices {
+					points[index].x = pointsOld[index].x + diffX
+					points[index].y = pointsOld[index].y + diffY
+				}
+			} else if rl.IsKeyDown(.DELETE) {
+				selectedPointIndicesSorted := make([dynamic]int)
+				for index in selectedPointIndices {
+					append(&selectedPointIndicesSorted, index)
+				}
+
+				// Remove in reverse order so we can remove in-place
+				sort.quick_sort(selectedPointIndicesSorted[:])
+				for i := len(selectedPointIndicesSorted) - 1; i >= 0; i -= 1 {
+					index := selectedPointIndicesSorted[i]
+					remove_range(&points, index, index+1)
+				}
+
+				clear(&pointsOld)
+
+				// Cancelling selected area
+				{
+					selectedArea = false
+					clear_map(&selectedPointIndices)
+				}
+				selectedAreaMoveStartPos = [2]f32{-1, -1} // Reset
+			}
+		} else {
+			if rightClick {
+				{
+					selectedArea = false
+					clear_map(&selectedPointIndices)
+				}
+
+				hovered := find_hovered_point(&points, mouseX, mouseY)
+				if hovered != -1 {
+					remove_range(&points, hovered, hovered+1)
+				}
+			} else if leftClick {
+				{
+					selectedArea = false
+					clear_map(&selectedPointIndices)
+				}
+
+				if !lastClick && time.since(lastPressTime) < 300 * time.Millisecond {
+					append(&points, Point{mouseX, mouseY})
+					lastPressTime = time.unix(0, 0) // reset
+					rl.PlaySound(hitmarker)
+				} else if !lastClick {
+					lastPressTime = time.now()
+					lastPressPosition = mousePos
+
 					if selectedPointIndex == -1 {
-						selectingArea = true
-						selectingAreaStart = mousePos
+						selectedPointIndex = find_hovered_point(&points, mouseX, mouseY)
+						if selectedPointIndex == -1 {
+							selectingArea = true
+							selectingAreaStart = mousePos
+						}
+					}
+				} else {
+					if selectedPointIndex != -1 {
+						points[selectedPointIndex].x = mouseX
+						points[selectedPointIndex].y = mouseY
 					}
 				}
 			} else {
-				if selectedPointIndex != -1 {
-					points[selectedPointIndex].x = mouseX
-					points[selectedPointIndex].y = mouseY
-				}
+				selectedPointIndex = -1
 			}
-		} else {
-			selectedPointIndex = -1
 		}
 
 		if !leftClick {
 			selectingArea = false
+			if len(selectedPointIndices) > 0 {
+				selectedArea = true
+			}
 		}
 
 		if selectingArea {
 			set_selected_points :: proc(selectedPointIndices: ^map[int]bool, points: [dynamic]Point, start, end: rl.Vector2) {
-				clear_map(selectedPointIndices)
+				//clear_map(selectedPointIndices)
 
 				for point, i in points {
 					pointRect := Rect{
@@ -314,7 +426,14 @@ main :: proc() {
 		draw_closest_points_text(&points, selectedPointIndex)
 		if selectingArea {
 			draw_selecting_area(selectingAreaStart, mousePos)
+		} else if selectedArea {
+			draw_selected_area :: proc(bbox: Rect) {
+				rl.DrawRectangleLines(i32(bbox.x), i32(bbox.y), i32(bbox.w), i32(bbox.h), {255,255,255,255})
+				rl.DrawRectangle(i32(bbox.x), i32(bbox.y), i32(bbox.w), i32(bbox.h), {255,255,255,60})
+			}
+			draw_selected_area(selectedAreaBbox)
 		}
+
 		rl.DrawFPS(10, 10)
 
 		rl.EndDrawing()
