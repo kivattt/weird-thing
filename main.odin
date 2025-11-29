@@ -305,7 +305,6 @@ main :: proc() {
 				}
 			}
 			set_selected_points(&selectedPointIndices, points, selectingAreaStart, mousePos)
-			fmt.println(selectedPointIndices)
 		}
 
 		lastClick = leftClick
