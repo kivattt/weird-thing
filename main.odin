@@ -297,7 +297,7 @@ main :: proc() {
 				1,
 				1,
 			}
-			if !are_rectangles_overlapping(mouseRect, selectedAreaBbox) && (rightClick || (leftClick && !lastClick)) {
+			if rl.IsKeyDown(.CAPS_LOCK) || rl.IsKeyDown(.ESCAPE) || !are_rectangles_overlapping(mouseRect, selectedAreaBbox) && (rightClick || (leftClick && !lastClick)) {
 				// Cancelling selected area
 				{
 					selectedArea = false
