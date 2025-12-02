@@ -30,15 +30,19 @@ Rect :: struct {
 }
 
 are_rectangles_overlapping :: proc(r1, r2: Rect) -> bool {
-	r1 := r1
-	r2 := r2
+	xOverlap := false
 	if r1.w > r2.w {
-		r1Copy := r1
-		r1 = r2
-		r2 = r1Copy
+		xOverlap = (r2.x >= r1.x && r2.x <= r1.x+r1.w) || (r2.x+r2.w >= r1.x && r2.x+r2.w <= r1.x+r1.w)
+	} else {
+		xOverlap = (r1.x >= r2.x && r1.x <= r2.x+r2.w) || (r1.x+r1.w >= r2.x && r1.x+r1.w <= r2.x+r2.w)
 	}
-	xOverlap := (r1.x >= r2.x && r1.x <= r2.x+r2.w) || (r1.x+r1.w >= r2.x && r1.x+r1.w <= r2.x+r2.w)
-	yOverlap := (r1.y >= r2.y && r1.y <= r2.y+r2.h) || (r1.y+r1.h >= r2.y && r1.y+r1.h <= r2.y+r2.h)
+
+	yOverlap := false
+	if r1.h > r2.h {
+		yOverlap = (r2.y >= r1.y && r2.y <= r1.y+r1.h) || (r2.y+r2.h >= r1.y && r2.y+r2.h <= r1.y+r1.h)
+	} else {
+		yOverlap = (r1.y >= r2.y && r1.y <= r2.y+r2.h) || (r1.y+r1.h >= r2.y && r1.y+r1.h <= r2.y+r2.h)
+	}
 
 	return xOverlap && yOverlap
 }
