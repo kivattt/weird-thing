@@ -174,8 +174,10 @@ hsv_to_rgb :: proc(h, s, v: f32) -> RGB {
 	return out
 }
 
-draw_radius_circles :: proc(points: ^[dynamic]Point) {
+draw_radius_circles :: proc(points: ^[dynamic]Point, onlyPointIndex: int) {
 	for a, i in points {
+		if onlyPointIndex != -1 && i != onlyPointIndex do continue
+
 		for b, j in points {
 			if j == i do continue
 
@@ -425,7 +427,13 @@ main :: proc() {
 
 		lastClick = leftClick
 
-		draw_radius_circles(&points)
+		hoveredIndex := -1
+		if rl.IsKeyDown(.LEFT_CONTROL) || rl.IsKeyDown(.RIGHT_CONTROL) {
+			hoveredIndex = find_hovered_point(&points, mouseX, mouseY)
+			if hoveredIndex == -1 do hoveredIndex = -2 // HACK
+		}
+
+		draw_radius_circles(&points, hoveredIndex)
 		draw_points(&points, selectedPointIndices, selectingArea)
 		draw_closest_points_text(&points, selectedPointIndex)
 		if selectingArea {

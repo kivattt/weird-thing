@@ -10,5 +10,5 @@ odin run .
 ## Controls
 Double-click to create a new point\
 Right-click to delete a point\
-Hold left-click to select multiple points. Move them or press Delete to delete the selected points
-
+Hold left-click to select multiple points. Move them or press Delete to delete the selected points\
+Hold Ctrl to only show circles belonging to the hovered point
