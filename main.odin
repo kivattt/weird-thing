@@ -183,12 +183,19 @@ draw_radius_circles :: proc(points: ^[dynamic]Point, onlyPointIndex: int) {
 
 			radius := math.hypot_f32(a.x - b.x, a.y - b.y)
 			hue := f32(i * 50 + 200)
+			if onlyPointIndex != -1 {
+				hue += radius / 2
+			}
 			color := hsv_to_rgb(hue, 1.0, 1.0)
 			color.r *= 255
 			color.g *= 255
 			color.b *= 255
 			opacity: u8 = 100
 			rl.DrawCircleLines(i32(a.x), i32(a.y), radius, {u8(color.r), u8(color.g), u8(color.b), opacity})
+
+			if onlyPointIndex != -1 {
+				rl.DrawLine(i32(a.x), i32(a.y), i32(b.x), i32(b.y), {u8(color.r), u8(color.g), u8(color.b), opacity})
+			}
 		}
 	}
 }
